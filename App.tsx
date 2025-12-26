@@ -36,7 +36,8 @@ import {
   Edit2,
   RectangleHorizontal,
   RectangleVertical,
-  RotateCcw
+  RotateCcw,
+  Copy // Added Copy Icon
 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import QRCode from 'qrcode';
@@ -288,6 +289,26 @@ const App = () => {
     setProjects(prev => [...prev, newP]);
     setActiveProjectId(newP.id);
     setCurrentView('template');
+  };
+
+  const handleDuplicateProject = (id: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+
+      const projectToClone = projects.find(p => p.id === id);
+      if (!projectToClone) return;
+
+      // Deep clone using JSON parse/stringify to avoid reference issues
+      const newProject: CertificateProject = {
+          ...JSON.parse(JSON.stringify(projectToClone)),
+          id: Date.now().toString(),
+          name: `${projectToClone.name} (Kopya)`,
+          createdAt: Date.now()
+      };
+
+      setProjects(prev => [...prev, newProject]);
+      // Optional: Switch to the new project immediately
+      // setActiveProjectId(newProject.id);
+      // setCurrentView('template');
   };
 
   const handleDeleteProject = (id: string, e?: React.MouseEvent) => {
@@ -969,13 +990,22 @@ const App = () => {
                                         <h3 className="font-bold text-lg text-slate-100 group-hover:text-amber-500 transition truncate">{p.name}</h3>
                                         <p className="text-xs text-slate-500 mt-1">{new Date(p.createdAt).toLocaleDateString()}</p>
                                     </div>
-                                    <button 
-                                        onClick={(e) => handleDeleteProject(p.id, e)}
-                                        className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition shrink-0"
-                                        title="Projeyi Sil"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex flex-col gap-1">
+                                        <button 
+                                            onClick={(e) => handleDuplicateProject(p.id, e)}
+                                            className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 rounded-full transition shrink-0"
+                                            title="Projeyi Kopyala"
+                                        >
+                                            <Copy size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => handleDeleteProject(p.id, e)}
+                                            className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition shrink-0"
+                                            title="Projeyi Sil"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                                 {activeProjectId === p.id && (
                                     <div className="absolute top-0 right-0 bg-amber-500 text-black text-[10px] font-bold px-2 py-1 rounded-bl-lg shadow-sm">
