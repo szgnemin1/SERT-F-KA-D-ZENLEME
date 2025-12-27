@@ -166,7 +166,7 @@ const App = () => {
 
   // --- Fill State ---
   // Store values by LABEL instead of ID to share across projects
-  // Format: { "Ad Soyad": "John Doe", "İmza Alanı 1": "url..." }
+  // Format: { "ad soyad": "John Doe" } -> Keys are normalized lowercase
   const [fillValues, setFillValues] = useState<Record<string, string>>({});
 
   // --- Persistence Effects ---
@@ -217,9 +217,9 @@ const App = () => {
   // --- Helper Functions ---
   
   // ROBUST KEY NORMALIZATION
-  // Removes extra spaces, trims, ensures consistency between input and replace logic
+  // Removes extra spaces, trims, and forces LOWERCASE to merge {AD SOYAD} and {Ad Soyad}
   const normalizeKey = (key: string) => {
-      return key.trim().replace(/\s+/g, ' ');
+      return key.trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR');
   };
 
   const updateProjectSide = (side: Side, updates: Partial<CertificateSide>) => {
@@ -271,23 +271,34 @@ const App = () => {
   };
 
   // Helper to get available labels for the current project for filename config
+  // Now returns case-insensitive unique list
   const getProjectLabels = () => {
-    const labels = new Set<string>();
+    const labelMap = new Map<string, string>(); // normalizedKey -> displayLabel
+    
     [activeProject.front, activeProject.back].forEach(side => {
         side.elements.forEach(el => {
             if (el.label) {
+                const norm = normalizeKey(el.label);
+                
                 if (el.type === ElementType.TEXT || el.type === ElementType.DROPDOWN || el.type === ElementType.SIGNATURE) {
-                    labels.add(el.label);
+                    if (!labelMap.has(norm)) {
+                        labelMap.set(norm, el.label);
+                    }
                 }
-                // If it is a company, add both the label and the short label suffix
+                
                 if (el.type === ElementType.COMPANY) {
-                    labels.add(el.label);
-                    labels.add(`${el.label}_Kisa`);
+                     if (!labelMap.has(norm)) {
+                        labelMap.set(norm, el.label);
+                    }
+                    const shortKey = normalizeKey(`${el.label}_Kisa`);
+                    if (!labelMap.has(shortKey)) {
+                        labelMap.set(shortKey, `${el.label}_Kisa`);
+                    }
                 }
             }
         });
     });
-    return Array.from(labels);
+    return Array.from(labelMap.values());
   };
 
   // --- Actions ---
@@ -639,7 +650,8 @@ const App = () => {
   const getUnifiedFillFields = () => {
     const fields: Record<string, { 
         type: ElementType, 
-        label: string, 
+        label: string, // Normalized Key (lowercase)
+        displayLabel: string, // Human readable label (e.g. "Ad Soyad")
         allowedSignatureIds?: string[],
         options?: string[]
     }> = {};
@@ -650,52 +662,53 @@ const App = () => {
         [proj.front, proj.back].forEach(side => {
             side.elements.forEach(el => {
                 
-                // --- LOGIC FOR TEXT AND QRCODE: Scan content for placeholders ---
-                // This ensures that if user types "Sayın {AD SOYAD}, {TARİH} tarihinde...",
-                // we generate inputs for "AD SOYAD" and "TARİH", not the element label.
+                // 1. STRUCTURED ELEMENTS (High Priority)
+                if (el.type === ElementType.SIGNATURE || el.type === ElementType.DROPDOWN || el.type === ElementType.COMPANY) {
+                    const rawLabel = el.label || el.id;
+                    const key = normalizeKey(rawLabel); // Lowercase key for merging
+                    
+                    const structuredField = {
+                        type: el.type,
+                        label: key,
+                        displayLabel: rawLabel, // Preserve original casing for UI
+                        allowedSignatureIds: el.allowedSignatureIds,
+                        options: el.options
+                    };
+
+                    if (!fields[key]) {
+                        fields[key] = structuredField;
+                    } else if (fields[key].type === ElementType.TEXT) {
+                        // Upgrade Text placeholder to Structured
+                        fields[key] = structuredField;
+                    } else if (fields[key].type === el.type) {
+                        // Merge logic
+                        if (el.allowedSignatureIds) {
+                            const current = fields[key].allowedSignatureIds || [];
+                            fields[key].allowedSignatureIds = Array.from(new Set([...current, ...el.allowedSignatureIds]));
+                        }
+                        if (el.options) {
+                            const current = fields[key].options || [];
+                            fields[key].options = Array.from(new Set([...current, ...el.options]));
+                        }
+                    }
+                }
+
+                // 2. PLACEHOLDERS (Low Priority)
                 if (el.type === ElementType.TEXT || el.type === ElementType.QRCODE) {
                     const regex = /{([^{}]+)}/g;
                     let match;
                     while ((match = regex.exec(el.content)) !== null) {
                         const rawKey = match[1];
-                        const key = normalizeKey(rawKey); // Use robust key normalization
+                        const key = normalizeKey(rawKey); 
                         
-                        // Skip if it's a "Short Name" request, we base field on root
-                        if (key.endsWith('_Kisa')) continue; 
+                        if (key.endsWith('_kisa')) continue; 
 
                         if (!fields[key]) {
                             fields[key] = {
-                                type: ElementType.TEXT, // Always text input for placeholders
+                                type: ElementType.TEXT,
                                 label: key,
-                                // No specific options/sigs for text placeholders
+                                displayLabel: rawKey.trim() // Keep the first found version as display
                             };
-                        }
-                    }
-                }
-
-                // --- LOGIC FOR STRUCTURED INPUTS ---
-                // Dropdown, Company, and Signature still rely on the Element Label acting as the key.
-                if (el.type === ElementType.SIGNATURE || el.type === ElementType.DROPDOWN || el.type === ElementType.COMPANY) {
-                    const key = el.label || el.id;
-                    if (!fields[key]) {
-                        fields[key] = {
-                            type: el.type,
-                            label: key,
-                            allowedSignatureIds: el.allowedSignatureIds,
-                            options: el.options
-                        };
-                    } else {
-                        if (fields[key].type === el.type) {
-                           // Merge logic...
-                           const existingAllowed = fields[key].allowedSignatureIds || [];
-                           const newAllowed = el.allowedSignatureIds || [];
-                           const mergedSigs = Array.from(new Set([...existingAllowed, ...newAllowed]));
-                           if (mergedSigs.length > 0) fields[key].allowedSignatureIds = mergedSigs;
-
-                           const existingOptions = fields[key].options || [];
-                           const newOptions = el.options || [];
-                           const mergedOptions = Array.from(new Set([...existingOptions, ...newOptions]));
-                           if (mergedOptions.length > 0) fields[key].options = mergedOptions;
                         }
                     }
                 }
@@ -706,77 +719,69 @@ const App = () => {
     return Object.values(fields);
   };
 
-  // Helper function to resolve placeholders in any text string (Filename, QR Content, etc.)
-  // Handles text replacement, finding signature/image names from Data URLs, and Company Short Codes
+  // Helper function to resolve placeholders in any text string
   const formatContent = (pattern: string, values: Record<string, string>) => {
       if (!pattern) return '';
       return pattern.replace(/{([^{}]+)}/g, (match, rawLabel) => {
          
-         const label = normalizeKey(rawLabel); // Use same normalization as key generation
+         const label = normalizeKey(rawLabel); 
 
          // CHECK FOR SHORT NAME SUFFIX (For Companies)
-         const isShortRequest = label.endsWith('_Kisa');
-         const cleanLabel = isShortRequest ? label.replace('_Kisa', '') : label;
+         const isShortRequest = label.endsWith('_kisa');
+         const cleanLabel = isShortRequest ? label.replace('_kisa', '') : label;
          
-         // 1. Try Exact Match (Normalized)
+         // Direct lookup (keys are always lowercase now)
          let val = values[cleanLabel];
          
-         // 2. Try Case-Insensitive Match (Turkish aware) - Fallback
-         if (val === undefined) {
-             const foundKey = Object.keys(values).find(k => 
-                 k.toLocaleLowerCase('tr-TR') === cleanLabel.toLocaleLowerCase('tr-TR')
-             );
-             if (foundKey) val = values[foundKey];
-         }
-         
-         // Fix for "Yazmama rağmen yerine yazmıyor": 
-         // Only return placeholder if value is strictly undefined (not yet typed).
-         // If value is "" (empty string), it should return "" (blank), NOT placeholder.
+         // Fix: Only return placeholder if value is strictly undefined (not yet typed)
          if (val === undefined) return match;
          
-         // If it's a signature (URL), try to find its name
+         // Signature Handling
          if (val.startsWith('data:')) {
              const sig = signatures.find(s => s.url === val);
-             // Return name if found (without extension), otherwise fallback
              return sig ? sig.name : 'Gorsel'; 
          }
 
-         // If user requested Short Name, try to find the company in global list by its Full Name (value)
+         // Company Short Name Handling
          if (isShortRequest) {
              const company = companies.find(c => c.name === val);
              if (company) return company.shortName;
-             return val; // Fallback to full value if not found in dictionary
+             return val; 
          }
 
-         return val; // Normal Text value
+         return val; 
       });
   };
 
   // Helper for filename generation
   const generateFilename = (pattern: string, values: Record<string, string>) => {
       const name = formatContent(pattern, values);
-      // Clean up unsafe characters for filesystem
       return name.replace(/[^a-z0-9ğüşıöçĞÜŞİÖÇ\- ]/gi, '_') + '.pdf';
   };
 
   // Helper to wrap text on canvas for better WYSIWYG
   const getWrappedLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-      const words = text.split(' ');
-      let lines = [];
-      let currentLine = words[0];
+      // Handle explicit newlines first
+      const rawLines = text.split('\n');
+      const finalLines: string[] = [];
 
-      for (let i = 1; i < words.length; i++) {
-          const word = words[i];
-          const width = ctx.measureText(currentLine + " " + word).width;
-          if (width < maxWidth) {
-              currentLine += " " + word;
-          } else {
-              lines.push(currentLine);
-              currentLine = word;
+      rawLines.forEach(rawLine => {
+          const words = rawLine.split(' ');
+          let currentLine = words[0];
+
+          for (let i = 1; i < words.length; i++) {
+              const word = words[i];
+              const width = ctx.measureText(currentLine + " " + word).width;
+              if (width < maxWidth) {
+                  currentLine += " " + word;
+              } else {
+                  finalLines.push(currentLine);
+                  currentLine = word;
+              }
           }
-      }
-      lines.push(currentLine);
-      return lines;
+          finalLines.push(currentLine);
+      });
+      return finalLines;
   };
 
   // --- Export PDF (Multi-Project) ---
@@ -840,7 +845,9 @@ const App = () => {
                    content = formatContent(el.content, fillValues);
                 } else {
                    // Image/Signature/Dropdown/Company use the direct fill value if available, else template content
-                   content = fillValues[el.label || ''] || el.content;
+                   // Use normalized key lookup
+                   const key = normalizeKey(el.label || '');
+                   content = fillValues[key] || el.content;
                 }
 
                 if (el.type === ElementType.SIGNATURE && !content) continue;
@@ -854,13 +861,8 @@ const App = () => {
                     ctx.textBaseline = 'top'; 
                     
                     const textToRender = content || '';
-                    const explicitLines = textToRender.split('\n');
-                    const allLines: string[] = [];
-                    
-                    explicitLines.forEach(line => {
-                        const wrapped = getWrappedLines(ctx, line, el.width);
-                        allLines.push(...wrapped);
-                    });
+                    // Wrapped lines now handles \n inside it
+                    const allLines = getWrappedLines(ctx, textToRender, el.width);
 
                     // Calculate X based on alignment
                     let startX = el.x; // Default left
@@ -929,7 +931,8 @@ const App = () => {
       }
 
       // Standard replacement for Signatures/Dropdowns
-      const val = fillValues[el.label || ''];
+      const key = normalizeKey(el.label || '');
+      const val = fillValues[key];
       if (val) return { ...el, content: val };
       return el; 
     });
@@ -1167,20 +1170,6 @@ const App = () => {
                                className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-white focus:border-amber-500 outline-none resize-none"
                                placeholder="Örn: {Ad Soyad} - {Tarih}"
                            />
-                           <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar">
-                               {getProjectLabels().map(label => (
-                                   <button 
-                                       key={label}
-                                       onClick={() => {
-                                           const current = selectedElement.content || '';
-                                           updateElement(selectedElement.id, { content: current + (current ? ' ' : '') + `{${label}}` });
-                                       }}
-                                       className="text-[10px] px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-amber-200/80 hover:text-white transition border border-slate-600 flex items-center gap-1"
-                                   >
-                                       <Plus size={8} /> {label}
-                                   </button>
-                               ))}
-                           </div>
                        </div>
                    </div>
                  )}
@@ -1765,19 +1754,26 @@ const App = () => {
                         getUnifiedFillFields().map((field, idx) => (
                        <div key={idx} className="space-y-2">
                           <label className="text-sm font-medium text-amber-500 flex justify-between select-none">
-                            <span>{field.label}</span>
-                            <span className="text-slate-500 text-[10px] bg-slate-900 px-2 rounded uppercase">
+                            <span className="truncate pr-2">{field.displayLabel}</span>
+                            <span className="text-slate-500 text-[10px] bg-slate-900 px-2 rounded uppercase shrink-0">
                                 {field.type === ElementType.DROPDOWN ? 'SEÇENEK' : (field.type === ElementType.COMPANY ? 'FİRMA' : (field.type === ElementType.QRCODE ? 'QR VERİSİ' : field.type))}
                             </span>
                           </label>
                           
                           {(field.type === ElementType.TEXT || field.type === ElementType.QRCODE) && (
-                            <input 
-                              type="text" 
+                            <textarea 
+                              rows={field.label.toLowerCase().includes('adres') ? 3 : 1}
                               value={fillValues[field.label] || ''}
                               onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))}
-                              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-amber-500 outline-none text-white placeholder-slate-600 transition"
+                              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-amber-500 outline-none text-white placeholder-slate-600 transition resize-y min-h-[46px]"
                               placeholder={field.type === ElementType.QRCODE ? "https://site.com" : "Metin değeri girin"}
+                              style={{ overflow: 'hidden' }}
+                              onInput={(e) => {
+                                  // Auto-grow
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = target.scrollHeight + 'px';
+                              }}
                             />
                           )}
 
