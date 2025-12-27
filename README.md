@@ -12,13 +12,14 @@
     <a href="#-kurulum">📦 İndir</a>
   </p>
 
+  ![Version](https://img.shields.io/badge/Versiyon-v1.2.5-blue?style=for-the-badge)
   ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
   ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-191970?style=for-the-badge&logo=Electron&logoColor=white)
   ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
   <br />
-  <img src="https://via.placeholder.com/1000x500?text=ProCertify+Studio+Dashboard" alt="ProCertify Studio Ekran Görüntüsü" width="100%">
+  <img src="https://via.placeholder.com/1000x500?text=ProCertify+Studio+v1.2.5" alt="ProCertify Studio Ekran Görüntüsü" width="100%">
 </div>
 
 ---
@@ -38,19 +39,19 @@ Eğer bu uygulamayı sertifika üretmek için kullanacaksanız, ihtiyacınız ol
 ### ✨ Neden ProCertify Studio?
 
 *   **🔒 %100 Güvenli ve Çevrimdışı:** Verileriniz asla bir sunucuya gitmez. Bilgisayarınızda (EXE) çalışır. KVKK/GDPR uyumludur.
-*   **🎨 Özgür Tasarım:** Hazır kalıplara sıkışmayın. Yazı, resim, imza ve QR kodları tuval üzerinde istediğiniz yere sürükleyin.
+*   **🧠 Akıllı Veri Birleştirme (YENİ):** Şablonda `{AD SOYAD}` ve `{Ad Soyad}` gibi farklı yazımlar olsa bile, sistem bunları **tek bir kutuda** birleştirir.
+*   **📝 Çok Satırlı Destek (YENİ):** Adres veya uzun açıklama metinleri için genişleyebilen yazı alanları eklendi. "Enter" tuşu ile alt satıra geçebilirsiniz.
+*   **🔗 QR ve Metin Senkronizasyonu:** Bir metin alanına ve QR koda aynı etiketi (Örn: `{Firma}`) verirseniz, doldurma ekranında tek seçim yaparak ikisini de aynı anda güncelleyebilirsiniz.
 *   **⚡ Toplu Üretim Gücü:** Tek bir şablon yapın, 1000 farklı isim için tek tuşla PDF alın.
-*   **📂 Akıllı Dosya İsimlendirme:** Çıktılarınızı `Sertifika-Ahmet-Yilmaz-2024.pdf` gibi otomatik isimlendirin.
 
 ### 🔥 Temel Özellikler
 
 | Özellik | Açıklama |
 | :--- | :--- |
-| **Sürükle & Bırak Editör** | Metinleri, logoları ve şekilleri mouse ile kolayca yerleştirin. Klavye ok tuşları ile hassas ayar yapın. |
-| **Akıllı Alanlar** | `{Ad Soyad}`, `{Tarih}` gibi etiketler koyun, "Doldur" ekranında bu alanları otomatik değiştirin. |
-| **İmza Yönetimi** | Yetkili imzalarını sisteme bir kez yükleyin. Hangi imzanın hangi alanda kullanılabileceğini kısıtlayın. |
+| **Sürükle & Bırak Editör** | Metinleri, logoları, imzaları ve QR kodları mouse ile kolayca yerleştirin. |
+| **Dinamik Yer Tutucular** | `{Ad Soyad}`, `{Tarih}` gibi etiketler koyun, "Doldur" ekranında bu alanları otomatik değiştirin. |
+| **İmza Yönetimi** | İmzalarınızı sisteme yükleyin veya doğrudan uygulama içinde çizin. Hangi imzanın hangi alanda kullanılabileceğini kısıtlayın. |
 | **Firma & Kısaltma** | Uzun firma isimlerini sertifikaya, kısa kodlarını (Örn: `ACME A.Ş.` -> `ACME`) dosya ismine otomatik yazdırın. |
-| **Dinamik QR Kod** | Her sertifika için kişiye özel, doğrulanabilir QR kodlar üretin. |
 | **Yedekleme Sistemi** | Tüm projelerinizi, ayarlarınızı ve görsellerinizi tek bir `.json` dosyası olarak yedekleyin/taşıyın. |
 
 ### ⌨️ Klavye Kısayolları (Editör Modu)
@@ -92,8 +93,8 @@ Projeyi yerel ortamınızda ayağa kaldırmak için:
 
 1.  **Depoyu Klonlayın:**
     ```bash
-    git clone https://github.com/yourusername/procertify-studio.git
-    cd procertify-studio
+    git clone https://github.com/szgnemin1/ProCertify.git
+    cd ProCertify
     ```
 
 2.  **Bağımlılıkları Yükleyin:**
@@ -121,7 +122,7 @@ Uygulamayı dağıtılabilir bir `.exe` (Windows) dosyasına dönüştürmek iç
 npm run dist
 ```
 
-Bu işlem tamamlandığında `release/` klasörü altında kurulum dosyasını (`ProCertify Studio Setup 1.2.4.exe`) bulabilirsiniz.
+Bu işlem tamamlandığında `release/` klasörü altında kurulum dosyasını (`ProCertify Studio Setup 1.2.5.exe`) bulabilirsiniz.
 
 > **Önemli Not:** `electron-builder` konfigürasyonu `package.json` dosyasındaki `build` alanında yapılmıştır. İkon değiştirmek için `public/favicon.ico` dosyasını güncelleyin.
 

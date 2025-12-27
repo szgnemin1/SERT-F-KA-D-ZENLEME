@@ -59,8 +59,8 @@ type Side = 'front' | 'back';
 
 const DEFAULT_WIDTH = 2000;
 const DEFAULT_HEIGHT = 1414;
-const APP_VERSION = "v1.2.4";
-const GITHUB_URL = "https://github.com/yourusername/procertify-studio"; // Placeholder
+const APP_VERSION = "v1.2.5";
+const GITHUB_URL = "https://github.com/szgnemin1/ProCertify";
 
 const createNewProject = (name: string): CertificateProject => ({
   id: Date.now().toString(),
@@ -381,11 +381,12 @@ const App = () => {
       fontSize: 60,
       fontFamily: FontStyle.SANS,
       color: '#000000',
-      label: type === ElementType.TEXT ? 'Metin Alanı' 
-              : (type === ElementType.SIGNATURE ? 'İmza Alanı' 
-              : (type === ElementType.DROPDOWN ? 'Seçenekli Alan' 
-              : (type === ElementType.COMPANY ? 'Firma Alanı'
-              : (type === ElementType.QRCODE ? 'QR Kod' : 'Görsel')))),
+      // Simplified labels to match potential placeholders automatically
+      label: type === ElementType.TEXT ? 'Metin' 
+              : (type === ElementType.SIGNATURE ? 'İmza' 
+              : (type === ElementType.DROPDOWN ? 'Seçenek' 
+              : (type === ElementType.COMPANY ? 'Firma'
+              : (type === ElementType.QRCODE ? 'QR' : 'Görsel')))),
       options: type === ElementType.DROPDOWN ? [] : undefined,
       fontWeight: 400,
       fontStyle: 'normal',
@@ -1226,7 +1227,7 @@ const App = () => {
                         onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
                         className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-32 focus:border-amber-500 outline-none shrink-0"
                         placeholder="Etiket"
-                        title="Doldurma ekranında aynı etikete sahip alanlar birleşir"
+                        title="Doldurma ekranında aynı etikete sahip alanlar birleşir (Örn: QR içindeki {Etiket} ile burası aynıysa tek kutu çıkar)"
                         />
                         {(selectedElement.type === ElementType.TEXT || selectedElement.type === ElementType.DROPDOWN || selectedElement.type === ElementType.QRCODE || selectedElement.type === ElementType.COMPANY) && (
                         <>
