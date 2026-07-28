@@ -228,6 +228,7 @@ const App = () => {
   // Company List State
   const [companies, setCompanies] = useState<Company[]>([]);
   const [tempCompanyInput, setTempCompanyInput] = useState('');
+  const [companySearchQuery, setCompanySearchQuery] = useState('');
   
   // Settings - Password State
   const [newPassword, setNewPassword] = useState('');
@@ -442,6 +443,19 @@ const App = () => {
   // --- Functions ---
   const normalizeKey = (key: string) => {
       return key.trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR');
+  };
+
+  const turkishToLower = (str: string): string => {
+      if (!str) return '';
+      return str
+          .replace(/İ/g, 'i')
+          .replace(/I/g, 'ı')
+          .replace(/Ğ/g, 'ğ')
+          .replace(/Ü/g, 'ü')
+          .replace(/Ş/g, 'ş')
+          .replace(/Ö/g, 'ö')
+          .replace(/Ç/g, 'ç')
+          .toLocaleLowerCase('tr-TR');
   };
 
   const maskTCKN = (tckn: string) => {
@@ -1296,7 +1310,7 @@ const App = () => {
              return sig ? sig.name : 'Gorsel'; 
          }
          if (isShortRequest) {
-             const company = companies.find(c => c.name === val);
+             const company = companies.find(c => turkishToLower(c.name) === turkishToLower(val));
              if (company) return company.shortName;
              return val; 
          }
@@ -1332,6 +1346,7 @@ const App = () => {
         const hasBack = activeBackData && (activeBackData.bgUrl || activeBackData.elements.length > 0);
         const sidesToPrint = hasBack ? sides : ['front'];
         let pageAddedForProj = false;
+        let firstPageImgData = '';
 
         for (const side of sidesToPrint) {
             if (!isFirstInDoc || pageAddedForProj) {
@@ -1437,8 +1452,10 @@ const App = () => {
                 }
             }
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            if (!firstPageImgData) firstPageImgData = imgData;
             pdf.addImage(imgData, 'JPEG', 0, 0, proj.width, proj.height);
         }
+        return firstPageImgData;
   };
 
   const getVerificationPayload = (values: Record<string, string>) => {
@@ -1480,6 +1497,8 @@ const App = () => {
                 const serialNo = `PRC-${baseSerial}`;
                 const activeValues = { ...fillValues, 'seri no': serialNo, 'seri numarasi': serialNo, 'sertifika no': serialNo };
 
+                const certImage = await renderProjectToPDF(pdf, proj, i === 0, activeValues);
+
                 if (localStorage.getItem('vps_session') === 'authenticated') {
                     try {
                         const token = localStorage.getItem('vps_session_token');
@@ -1491,17 +1510,16 @@ const App = () => {
                             },
                             body: JSON.stringify({
                                 serialNo,
-                                fields: getVerificationPayload(fillValues),
+                                fields: getVerificationPayload(activeValues),
                                 projects: [proj.name],
-                                date: new Date().toISOString()
+                                date: new Date().toISOString(),
+                                image: certImage
                             })
                         });
                     } catch (e) {
                        console.error("Backend issue error", e);
                     }
                 }
-
-                await renderProjectToPDF(pdf, proj, i === 0, activeValues);
                 
                 // Important yield for UI responsiveness
                 if (i % 2 === 0) {
@@ -1524,6 +1542,15 @@ const App = () => {
                 const serialNo = `PRC-${baseSerial}`;
                 const activeValues = { ...fillValues, 'seri no': serialNo, 'seri numarasi': serialNo, 'sertifika no': serialNo };
 
+                // Create a fresh instance for each file to keep memory low
+                const pdf = new jsPDF({
+                    orientation: proj.width > proj.height ? 'landscape' : 'portrait',
+                    unit: 'px',
+                    format: [proj.width, proj.height]
+                });
+
+                const certImage = await renderProjectToPDF(pdf, proj, true, activeValues);
+
                 // Save to verification system
                 if (localStorage.getItem('vps_session') === 'authenticated') {
                     try {
@@ -1536,16 +1563,16 @@ const App = () => {
                             },
                             body: JSON.stringify({
                                 serialNo,
-                                fields: fillValues,
+                                fields: getVerificationPayload(fillValues),
                                 projects: [proj.name],
-                                date: new Date().toISOString()
+                                date: new Date().toISOString(),
+                                image: certImage
                             })
                         });
                     } catch (e) {
                        console.error("Backend issue error", e);
                     }
                 }
-
                 // Generate base filename
                 let rawName = generateFilename(proj.filenamePattern || `Sertifika-${proj.name}`, activeValues);
                 let baseName = rawName.replace(/\.pdf$/i, '');
@@ -1560,15 +1587,7 @@ const App = () => {
                     counter++;
                 }
                 usedNames.add(uniqueName);
-                
-                // Create a fresh instance for each file to keep memory low
-                const pdf = new jsPDF({
-                    orientation: proj.width > proj.height ? 'landscape' : 'portrait',
-                    unit: 'px',
-                    format: [proj.width, proj.height]
-                });
 
-                await renderProjectToPDF(pdf, proj, true, activeValues);
                 const pdfData = pdf.output('arraybuffer');
                 
                 // Add to zip
@@ -1933,11 +1952,98 @@ const App = () => {
         {/* VIEW: SETTINGS */}
         {currentView === 'settings' && (
           <div className="flex-1 bg-slate-900 p-4 md:p-10 overflow-y-auto custom-scrollbar">
-             {/* ... Settings Content (same as before) ... */}
              <div className="max-w-4xl mx-auto space-y-8">
                 <div><h1 className="text-3xl font-bold mb-2 text-white">Ayarlar & Varlıklar</h1><p className="text-slate-400">Uygulama genel ayarları ve varlık yönetimi.</p></div>
-                <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700"><h2 className="text-xl font-semibold flex items-center gap-2 text-white mb-6"><FileText className="text-blue-500" /> Aktif Proje Yönetimi</h2><div className="w-full"><label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Proje İsmi</label><input type="text" value={activeProject.name} onChange={(e) => updateProjectMeta({ name: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 outline-none" /><p className="text-[10px] text-slate-500 mt-2">Projeyi silmek için <button onClick={() => setCurrentView('projects')} className="text-amber-500 hover:underline">Projeler</button> sayfasına gidiniz.</p></div></div>
-                <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-semibold flex items-center gap-2 text-white"><Building className="text-green-500" /> Firma Listesi Yönetimi</h2><span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">Toplam: {companies.length}</span></div><p className="text-sm text-slate-400 mb-4">Sertifikalarda kullanılacak firma/kurum isimlerini buraya ekleyin. Kısaltma belirlemek için "|" karakterini kullanın (Örn: "Acme Şirketi | Acme").</p><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Toplu Ekleme</label><textarea rows={6} value={tempCompanyInput} onChange={(e) => setTempCompanyInput(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-white focus:border-green-500 outline-none resize-none font-mono" placeholder={"Firma Adı | Kısaltma\nÖrnek A.Ş. | Örnek\nSadece İsim"} /><button onClick={() => addCompany(tempCompanyInput)} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium transition shadow-lg shadow-green-900/20 active:scale-95">Listeye Ekle</button></div><div className="space-y-2 flex flex-col h-full"><label className="text-xs font-bold text-slate-500 uppercase">Mevcut Liste</label><div className="bg-slate-900/50 rounded-lg border border-slate-700 p-2 flex-1 max-h-[200px] overflow-y-auto custom-scrollbar space-y-1">{companies.length === 0 ? (<div className="text-center py-8 text-slate-500 text-sm italic">Liste boş.</div>) : (companies.map((company, idx) => (<div key={idx} className="flex justify-between items-center p-2 bg-slate-800 rounded group hover:bg-slate-700 transition"><div className="flex flex-col truncate pr-2"><span className="text-sm text-slate-200">{company.name}</span>{company.shortName !== company.name && (<span className="text-[10px] text-slate-500 font-mono">Kısaltma: {company.shortName}</span>)}</div><button onClick={() => removeCompany(company.id)} className="text-slate-500 hover:text-red-500 p-1 opacity-60 group-hover:opacity-100 transition"><Trash2 size={14} /></button></div>)))}</div></div></div></div>
+                <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+                  <h2 className="text-xl font-semibold flex items-center gap-2 text-white mb-6">
+                    <FileText className="text-blue-500" /> Aktif Proje Yönetimi
+                  </h2>
+                  <div className="w-full">
+                    <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Proje İsmi</label>
+                    <input 
+                      type="text" 
+                      value={activeProject.name} 
+                      onChange={(e) => updateProjectMeta({ name: e.target.value })} 
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 outline-none" 
+                    />
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Projeyi silmek için <button onClick={() => setCurrentView('projects')} className="text-amber-500 hover:underline">Projeler</button> sayfasına gidiniz.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold flex items-center gap-2 text-white">
+                      <Building className="text-green-500" /> Firma Listesi Yönetimi
+                    </h2>
+                    <span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">Toplam: {companies.length}</span>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-4">Sertifikalarda kullanılacak firma/kurum isimlerini buraya ekleyin. Kısaltma belirlemek için "|" karakterini kullanın (Örn: "Acme Şirketi | Acme").</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Toplu Ekleme</label>
+                      <textarea 
+                        rows={6} 
+                        value={tempCompanyInput} 
+                        onChange={(e) => setTempCompanyInput(e.target.value)} 
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-white focus:border-green-500 outline-none resize-none font-mono" 
+                        placeholder={"Firma Adı | Kısaltma\nÖrnek A.Ş. | Örnek\nSadece İsim"} 
+                      />
+                      <button 
+                        onClick={() => addCompany(tempCompanyInput)} 
+                        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium transition shadow-lg shadow-green-900/20 active:scale-95"
+                      >
+                        Listeye Ekle
+                      </button>
+                    </div>
+                    <div className="space-y-2 flex flex-col h-full">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Mevcut Liste</label>
+                        {companies.length > 0 && (
+                          <input 
+                            type="text"
+                            value={companySearchQuery}
+                            onChange={(e) => setCompanySearchQuery(e.target.value)}
+                            placeholder="Firma ara..."
+                            className="bg-slate-900 border border-slate-700 rounded px-3 py-1 text-xs text-white placeholder-slate-500 focus:border-green-500 outline-none w-40 md:w-52 transition"
+                          />
+                        )}
+                      </div>
+                      <div className="bg-slate-900/50 rounded-lg border border-slate-700 p-2 flex-1 max-h-[200px] overflow-y-auto custom-scrollbar space-y-1">
+                        {(() => {
+                          const searched = companies.filter(c => 
+                            turkishToLower(c.name).includes(turkishToLower(companySearchQuery)) || 
+                            (c.shortName && turkishToLower(c.shortName).includes(turkishToLower(companySearchQuery)))
+                          );
+                          if (searched.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-slate-500 text-sm italic">
+                                {companies.length === 0 ? "Liste boş." : "Aramayla eşleşen firma bulunamadı."}
+                              </div>
+                            );
+                          }
+                          return searched.map((company, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-2 bg-slate-800 rounded group hover:bg-slate-700 transition">
+                              <div className="flex flex-col truncate pr-2">
+                                <span className="text-sm text-slate-200">{company.name}</span>
+                                {company.shortName !== company.name && (
+                                  <span className="text-[10px] text-slate-500 font-mono">Kısaltma: {company.shortName}</span>
+                                )}
+                              </div>
+                              <button 
+                                onClick={() => removeCompany(company.id)} 
+                                className="text-slate-500 hover:text-red-500 p-1 opacity-60 group-hover:opacity-100 transition"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-semibold flex items-center gap-2 text-white"><PenTool className="text-amber-500" /> Kayıtlı İmzalar</h2><div className="flex gap-2"><button onClick={() => setShowSignaturePad(true)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition shadow-sm border border-slate-600"><PenLine size={18} /> İmza Çiz</button><label className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg cursor-pointer flex items-center gap-2 font-medium transition shadow-lg shadow-amber-900/20 active:scale-95 transform"><Plus size={18} /> İmza Yükle<input type="file" accept="image/*" multiple className="hidden" onChange={handleSignatureUpload} /></label></div></div>{signatures.length === 0 ? (<div className="text-center py-10 border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/50"><Upload className="mx-auto text-slate-600 mb-4" size={40} /><p className="text-slate-500 text-sm">Henüz hiç imza yüklenmemiş.</p></div>) : (<div className="grid grid-cols-2 md:grid-cols-4 gap-4">{signatures.map(sig => (<div key={sig.id} className="group relative bg-white rounded-xl p-4 flex items-center justify-center h-32 shadow-sm border border-slate-600 transition hover:border-amber-500/50"><img src={sig.url} alt={sig.name} className="max-h-full max-w-full object-contain" /><div className="absolute inset-0 bg-black/60 opacity-60 group-hover:opacity-100 transition flex items-center justify-center rounded-xl backdrop-blur-sm"><button onClick={() => deleteSignature(sig.id)} className="bg-red-500 p-2 rounded-full text-white hover:bg-red-600 shadow-lg transform active:scale-95 transition"><Trash2 size={20} /></button></div><div className="absolute bottom-2 left-2 right-2 text-center"><span className="text-[10px] bg-slate-900/90 text-white px-2 py-1 rounded truncate block border border-slate-700 shadow-sm">{sig.name}</span></div></div>))}</div>)}</div>
                 <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
                     <div className="flex justify-between items-center mb-6">
@@ -2241,7 +2347,7 @@ const App = () => {
 
                             if (options.length > 0) {
                               const isSearchEmpty = chatInputValue.trim() === '';
-                              const filteredOptions = isSearchEmpty ? options : options.filter(opt => opt.label.toLowerCase().includes(chatInputValue.toLowerCase()));
+                              const filteredOptions = isSearchEmpty ? options : options.filter(opt => turkishToLower(opt.label).includes(turkishToLower(chatInputValue)));
                               
                               const shouldShowOptions = options.length <= 4 || !isSearchEmpty || field.type === ElementType.COMPANY;
                               
@@ -2413,7 +2519,29 @@ const App = () => {
                               <textarea rows={field.label.toLowerCase().includes('adres') ? 3 : 1} value={fillValues[field.label] || ''} onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-amber-500 outline-none text-white placeholder-slate-600 transition resize-y min-h-[46px]" placeholder={field.type === ElementType.QRCODE ? "https://site.com" : (field.type === ElementType.TCKN ? "TC Kimlik No Girin (11 Hane)" : "Metin değeri girin")} style={{ overflow: 'hidden' }} maxLength={field.type === ElementType.TCKN ? 11 : undefined} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = target.scrollHeight + 'px'; }} />
                             )}
                             {field.type === ElementType.DROPDOWN && (<div className="relative"><select value={fillValues[field.label] || ''} onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-amber-500 outline-none text-white appearance-none cursor-pointer hover:bg-slate-800 transition"><option value="">Bir seçenek belirleyin...</option>{field.options && field.options.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}</select><div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">▼</div></div>)}
-                            {field.type === ElementType.COMPANY && (<div className="relative"><input list={`companies-list-${idx}`} value={fillValues[field.label] || ''} onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-green-500 outline-none text-white transition placeholder-slate-600" placeholder="Yazarak arayın veya seçin..." /><datalist id={`companies-list-${idx}`}>{companies.map((company, i) => (<option key={i} value={company.name}>{company.name}</option>))}</datalist>{companies.length === 0 && (<div className="text-[10px] text-red-400 mt-1">Firma listesi boş. Ayarlar sekmesinden ekleyebilirsiniz.</div>)}</div>)}
+                            {field.type === ElementType.COMPANY && (() => {
+                               const currentVal = fillValues[field.label] || '';
+                               const filtered = currentVal ? companies.filter(c => turkishToLower(c.name).includes(turkishToLower(currentVal)) || (c.shortName && turkishToLower(c.shortName).includes(turkishToLower(currentVal)))) : companies;
+                               return (
+                                 <div className="relative">
+                                   <input 
+                                     list={`companies-list-${idx}`} 
+                                     value={currentVal} 
+                                     onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))} 
+                                     className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-green-500 outline-none text-white transition placeholder-slate-600" 
+                                     placeholder="Yazarak arayın veya seçin..." 
+                                   />
+                                   <datalist id={`companies-list-${idx}`}>
+                                     {filtered.map((company, i) => (
+                                       <option key={i} value={company.name}>{company.name}</option>
+                                     ))}
+                                   </datalist>
+                                   {companies.length === 0 && (
+                                     <div className="text-[10px] text-red-400 mt-1">Firma listesi boş. Ayarlar sekmesinden ekleyebilirsiniz.</div>
+                                   )}
+                                 </div>
+                               );
+                             })()}
                             {field.type === ElementType.SIGNATURE && (<div className="relative"><select value={fillValues[field.label] || ''} onChange={(e) => setFillValues(prev => ({ ...prev, [field.label]: e.target.value }))} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:border-amber-500 outline-none text-white appearance-none cursor-pointer hover:bg-slate-800 transition"><option value="">İmza Seçiniz...</option>{signatures.filter(sig => !field.allowedSignatureIds || field.allowedSignatureIds.length === 0 || field.allowedSignatureIds.includes(sig.id)).map(sig => (<option key={sig.id} value={sig.url}>{sig.name}</option>))}</select><div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">▼</div>{field.allowedSignatureIds && field.allowedSignatureIds.length > 0 && (<div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1"><Filter size={10} /> Bu alan için {field.allowedSignatureIds.length} adet imza tanımlı.</div>)}</div>)}
                          </div>
                         ))}
