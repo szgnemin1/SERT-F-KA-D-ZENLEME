@@ -1499,6 +1499,17 @@ const App = () => {
 
                 const certImage = await renderProjectToPDF(pdf, proj, i === 0, activeValues);
 
+                let companyVal = '';
+                for (const [k, v] of Object.entries(activeValues)) {
+                    if (v && typeof v === 'string') {
+                        const lk = k.toLowerCase();
+                        if (lk.includes('firma') || lk.includes('kurum') || lk.includes('şirket') || lk.includes('sirket') || lk.includes('company')) {
+                            companyVal = v;
+                            break;
+                        }
+                    }
+                }
+
                 if (localStorage.getItem('vps_session') === 'authenticated') {
                     try {
                         const token = localStorage.getItem('vps_session_token');
@@ -1510,6 +1521,7 @@ const App = () => {
                             },
                             body: JSON.stringify({
                                 serialNo,
+                                company: companyVal,
                                 fields: getVerificationPayload(activeValues),
                                 projects: [proj.name],
                                 date: new Date().toISOString(),
@@ -1551,6 +1563,17 @@ const App = () => {
 
                 const certImage = await renderProjectToPDF(pdf, proj, true, activeValues);
 
+                let companyVal = '';
+                for (const [k, v] of Object.entries(activeValues)) {
+                    if (v && typeof v === 'string') {
+                        const lk = k.toLowerCase();
+                        if (lk.includes('firma') || lk.includes('kurum') || lk.includes('şirket') || lk.includes('sirket') || lk.includes('company')) {
+                            companyVal = v;
+                            break;
+                        }
+                    }
+                }
+
                 // Save to verification system
                 if (localStorage.getItem('vps_session') === 'authenticated') {
                     try {
@@ -1563,7 +1586,8 @@ const App = () => {
                             },
                             body: JSON.stringify({
                                 serialNo,
-                                fields: getVerificationPayload(fillValues),
+                                company: companyVal,
+                                fields: getVerificationPayload(activeValues),
                                 projects: [proj.name],
                                 date: new Date().toISOString(),
                                 image: certImage

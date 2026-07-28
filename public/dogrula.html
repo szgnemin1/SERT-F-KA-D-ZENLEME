@@ -125,10 +125,30 @@
                     if (res.ok) {
                         const data = await res.json();
                         
+                        let companyName = data.company || '';
+                        if (!companyName && data.fields) {
+                            for (const [key, value] of Object.entries(data.fields)) {
+                                if (!value || typeof value !== 'string') continue;
+                                const lowerKey = key.toLowerCase();
+                                if (lowerKey.includes('firma') || lowerKey.includes('kurum') || lowerKey.includes('şirket') || lowerKey.includes('sirket') || lowerKey.includes('company')) {
+                                    companyName = value;
+                                    break;
+                                }
+                            }
+                        }
+
                         let htmlContent = `
-                            <div class="bg-green-50 rounded-xl p-4 border border-green-100 mb-6 text-center transform transition-all hover:scale-[1.02]">
-                                <span class="text-[10px] font-bold text-green-600 uppercase tracking-widest block mb-1">Sertifika Numarası</span>
-                                <div class="text-xl font-mono text-green-800 font-bold tracking-wider">${escapeHtml(data.serialNo)}</div>
+                            <div class="grid grid-cols-1 ${companyName ? 'sm:grid-cols-2' : ''} gap-3 mb-6">
+                                <div class="bg-green-50 rounded-xl p-4 border border-green-100 text-center flex flex-col justify-center shadow-sm">
+                                    <span class="text-[10px] font-bold text-green-600 uppercase tracking-widest block mb-1">Sertifika Numarası</span>
+                                    <div class="text-lg font-mono text-green-800 font-bold tracking-wider">${escapeHtml(data.serialNo)}</div>
+                                </div>
+                                ${companyName ? `
+                                    <div class="bg-blue-50 rounded-xl p-4 border border-blue-100 text-center flex flex-col justify-center shadow-sm">
+                                        <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest block mb-1">Firma / Kurum Adı</span>
+                                        <div class="text-base font-bold text-blue-900 break-words">${escapeHtml(companyName)}</div>
+                                    </div>
+                                ` : ''}
                             </div>
                             <div class="space-y-4 relative">
                         `;
