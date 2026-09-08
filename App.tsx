@@ -113,8 +113,17 @@ const getApiUrl = (endpoint: string) => {
   return `${base}${endpoint}`;
 };
 
-const downloadFile = async (blob: Blob | ArrayBuffer, defaultFilename: string, mimeType: string) => {
-  if ('showSaveFilePicker' in window) {
+const downloadFile = async (blob: Blob | ArrayBuffer, defaultFilename: string, mimeType: string, preAcquiredHandle?: any) => {
+  if (preAcquiredHandle) {
+    try {
+      const writable = await preAcquiredHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (err) {
+      console.error("Failed to write to pre-acquired handle, falling back to standard download...", err);
+    }
+  } else if ('showSaveFilePicker' in window) {
     try {
       const ext = defaultFilename.split('.').pop() || '';
       const handle = await (window as any).showSaveFilePicker({
@@ -1474,6 +1483,38 @@ const App = () => {
     const targetProjects = projects.filter(p => selectedFillProjectIds.includes(p.id));
     if (targetProjects.length === 0) return;
 
+    let fileHandle = null;
+    let exportFilename = '';
+    
+    // 1. Masaüstü tarayıcılarda dosya seçme penceresini AÇMAK İÇİN
+    // user gesture (tıklama) kaybolmadan hemen önce dosyayı nereye kaydedeceğini soruyoruz.
+    try {
+        if (exportMode === 'single') {
+            const firstProj = targetProjects[0];
+            exportFilename = generateFilename(firstProj.filenamePattern || 'Sertifikalar_Birlestirilmis', fillValues);
+            
+            if ('showSaveFilePicker' in window) {
+                fileHandle = await (window as any).showSaveFilePicker({
+                    suggestedName: exportFilename,
+                    types: [{ description: 'PDF Dosyası', accept: { 'application/pdf': ['.pdf'] } }]
+                });
+            }
+        } else {
+            exportFilename = `Sertifikalar_${new Date().getTime()}.zip`;
+            if ('showSaveFilePicker' in window) {
+                fileHandle = await (window as any).showSaveFilePicker({
+                    suggestedName: exportFilename,
+                    types: [{ description: 'ZIP Dosyası', accept: { 'application/zip': ['.zip'] } }]
+                });
+            }
+        }
+    } catch (err: any) {
+        if (err.name === 'AbortError') {
+            return; // Kullanıcı iptal etti, işlemi durdur
+        }
+        console.warn("Dosya seçici açılamadı, varsayılan indirme kullanılacak...", err);
+    }
+
     setIsGenerating(true);
     setProgress(0);
     // Yield to let UI update
@@ -1541,7 +1582,7 @@ const App = () => {
             }
             
             const pdfBlob = pdf.output('blob');
-            await downloadFile(pdfBlob, filename, 'application/pdf');
+            await downloadFile(pdfBlob, exportFilename, 'application/pdf', fileHandle);
 
         } else {
             const zip = new JSZip();
@@ -1625,7 +1666,7 @@ const App = () => {
 
             setProgress(99); // Generating zip
             const zipBlob = await zip.generateAsync({ type: 'blob' });
-            await downloadFile(zipBlob, `Sertifikalar_${new Date().getTime()}.zip`, 'application/zip');
+            await downloadFile(zipBlob, exportFilename, 'application/zip', fileHandle);
 
             alert(`${savedCount} adet dosya başarıyla ZIP olarak indirildi!`);
         }
